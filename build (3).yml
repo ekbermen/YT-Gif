@@ -1,0 +1,1302 @@
+name: Build GifYa APK
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.9
+
+      - name: GifYa proje dosyalarini uret
+        run: |
+          mkdir -p app/src/main/java/com/ytgif/app app/src/main/assets
+          mkdir -p app/src/main/res/values app/src/main/res/drawable app/src/main/res/mipmap-anydpi-v26
+
+          cat > settings.gradle << 'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = 'GifYa'
+          include ':app'
+          EOF
+
+          cat > build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application' version '8.5.2' apply false
+          }
+          EOF
+
+          cat > gradle.properties << 'EOF'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=true
+          EOF
+
+          cat > app/build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+          android {
+              namespace 'com.ytgif.app'
+              compileSdk 34
+              defaultConfig {
+                  applicationId 'com.ytgif.app'
+                  minSdk 26
+                  targetSdk 34
+                  versionCode 4
+                  versionName '4.0'
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+                  encoding 'UTF-8'
+              }
+          }
+          dependencies {
+              implementation 'androidx.webkit:webkit:1.11.0'
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <application
+                  android:label="GifYa"
+                  android:icon="@mipmap/ic_launcher"
+                  android:roundIcon="@mipmap/ic_launcher_round"
+                  android:usesCleartextTraffic="false"
+                  android:theme="@style/AppTheme">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout"
+                      android:windowSoftInputMode="adjustResize">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/res/values/colors.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="ic_launcher_background">#7C3AED</color>
+          </resources>
+          EOF
+
+          cat > app/src/main/res/values/styles.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <style name="AppTheme" parent="android:Theme.DeviceDefault.NoActionBar">
+                  <item name="android:windowBackground">@color/ic_launcher_background</item>
+                  <item name="android:statusBarColor">#000000</item>
+                  <item name="android:navigationBarColor">#000000</item>
+              </style>
+          </resources>
+          EOF
+
+          cat > app/src/main/res/drawable/ic_launcher_foreground.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+              android:width="108dp"
+              android:height="108dp"
+              android:viewportWidth="108"
+              android:viewportHeight="108">
+              <path
+                  android:fillColor="#FF4FA3"
+                  android:pathData="M54,54m-30,0a30,30 0 1,1 60,0a30,30 0 1,1 -60,0" />
+              <path
+                  android:fillColor="#FFFFFF"
+                  android:pathData="M38,42 Q38,38 42,38 L66,38 Q70,38 70,42 L70,60 Q70,64 66,64 L52,64 L44,72 L44,64 L42,64 Q38,64 38,60 Z" />
+              <path
+                  android:strokeColor="#7C3AED"
+                  android:strokeWidth="3.5"
+                  android:strokeLineCap="round"
+                  android:strokeLineJoin="round"
+                  android:pathData="M60,47 A7,7 0 1,0 61,53 L61,52 L54,52" />
+          </vector>
+          EOF
+
+          cat > app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/ic_launcher_background" />
+              <foreground android:drawable="@drawable/ic_launcher_foreground" />
+          </adaptive-icon>
+          EOF
+
+          cp app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml
+
+          cat > app/src/main/java/com/ytgif/app/MainActivity.java << 'EOF'
+          package com.ytgif.app;
+
+          import android.animation.ObjectAnimator;
+          import android.animation.PropertyValuesHolder;
+          import android.app.Activity;
+          import android.app.AlertDialog;
+          import android.content.ClipData;
+          import android.content.ClipboardManager;
+          import android.content.Intent;
+          import android.content.SharedPreferences;
+          import android.graphics.Color;
+          import android.graphics.Typeface;
+          import android.graphics.drawable.GradientDrawable;
+          import android.net.Uri;
+          import android.os.Bundle;
+          import android.os.Handler;
+          import android.os.Looper;
+          import android.util.Base64;
+          import android.util.TypedValue;
+          import android.view.Gravity;
+          import android.view.View;
+          import android.view.animation.AccelerateInterpolator;
+          import android.view.animation.OvershootInterpolator;
+          import android.webkit.CookieManager;
+          import android.webkit.JavascriptInterface;
+          import android.webkit.WebChromeClient;
+          import android.webkit.WebResourceRequest;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import android.widget.FrameLayout;
+          import android.widget.ImageView;
+          import android.widget.LinearLayout;
+          import android.widget.TextView;
+          import android.widget.Toast;
+
+          import androidx.webkit.WebSettingsCompat;
+          import androidx.webkit.WebViewCompat;
+          import androidx.webkit.WebViewFeature;
+
+          import java.io.ByteArrayOutputStream;
+          import java.io.InputStream;
+          import java.io.PrintWriter;
+          import java.io.StringWriter;
+          import java.net.HttpURLConnection;
+          import java.net.URL;
+          import java.nio.charset.StandardCharsets;
+          import java.util.ArrayList;
+          import java.util.HashSet;
+          import java.util.List;
+          import java.util.Set;
+          import java.util.regex.Matcher;
+          import java.util.regex.Pattern;
+
+          public class MainActivity extends Activity {
+              private WebView web;
+              private FrameLayout root;
+              private View customView;
+              private WebChromeClient.CustomViewCallback customCb;
+              private String js = "";
+              private boolean desktop = true;
+
+              private View progress;
+              private View dim;
+              private TextView fab;
+              private LinearLayout menuBox;
+              private final List<TextView> items = new ArrayList<>();
+              private boolean menuOpen = false;
+
+              private FrameLayout splash;
+              private ObjectAnimator pulse;
+              private final Handler handler = new Handler(Looper.getMainLooper());
+
+              private static final String UA_MOBILE = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
+              private static final String UA_DESKTOP = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+              private static final String[] LABELS = {
+                  "\uD83C\uDFE0  Ana Sayfa", "\u25C0  Geri", "\uD83D\uDD04  Yenile",
+                  "\uD83C\uDF9E  GIF Paneli", "\uD83E\uDDF9  Cerezleri Temizle", "\uD83D\uDC1E  GIF Hata Kaydi",
+                  "\uD83D\uDDA5  Mod"
+              };
+
+              private int dp(int v) {
+                  return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, getResources().getDisplayMetrics());
+              }
+
+              private String home() {
+                  return desktop ? "https://www.youtube.com" : "https://m.youtube.com";
+              }
+
+              private String modeLabel() {
+                  return desktop ? "\uD83D\uDCF1  Mobil Moda Gec" : "\uD83D\uDDA5  Masaustu Moda Gec";
+              }
+
+              @Override
+              protected void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  installCrashHandler();
+                  desktop = getSharedPreferences("cfg", MODE_PRIVATE).getBoolean("desktop", true);
+                  loadJs();
+
+                  root = new FrameLayout(this);
+                  root.setBackgroundColor(Color.BLACK);
+                  web = new WebView(this);
+                  root.addView(web, new FrameLayout.LayoutParams(-1, -1));
+                  setContentView(root);
+
+                  setupWeb(b);
+                  buildProgress();
+                  buildMenu();
+                  buildSplash();
+                  showPrevCrash();
+              }
+
+              private void installCrashHandler() {
+                  final SharedPreferences sp = getSharedPreferences("crash", MODE_PRIVATE);
+                  Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
+                      StringWriter sw = new StringWriter();
+                      e.printStackTrace(new PrintWriter(sw));
+                      sp.edit().putString("trace", sw.toString()).commit();
+                      android.os.Process.killProcess(android.os.Process.myPid());
+                      System.exit(10);
+                  });
+              }
+
+              private void showPrevCrash() {
+                  final SharedPreferences sp = getSharedPreferences("crash", MODE_PRIVATE);
+                  String prev = sp.getString("trace", null);
+                  if (prev == null) return;
+                  sp.edit().remove("trace").apply();
+                  new AlertDialog.Builder(this)
+                      .setTitle("Onceki calismada hata")
+                      .setMessage(prev.length() > 1500 ? prev.substring(0, 1500) : prev)
+                      .setPositiveButton("Tamam", null)
+                      .show();
+              }
+
+              private void loadJs() {
+                  try {
+                      InputStream is = getAssets().open("gif.js");
+                      ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                      byte[] buf = new byte[8192];
+                      int n;
+                      while ((n = is.read(buf)) > 0) bo.write(buf, 0, n);
+                      js = bo.toString("UTF-8");
+                      is.close();
+                  } catch (Exception e) { }
+              }
+
+              private void copyText(String text, String msg) {
+                  ClipboardManager cm = (ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+                  cm.setPrimaryClip(ClipData.newPlainText("gifya", text));
+                  Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+              }
+
+              // Masaustu / mobil mod ayarlari
+              private void applyMode() {
+                  WebSettings s = web.getSettings();
+                  s.setUserAgentString(desktop ? UA_DESKTOP : UA_MOBILE);
+                  s.setUseWideViewPort(desktop);
+                  s.setLoadWithOverviewMode(desktop);
+                  s.setSupportZoom(true);
+                  s.setBuiltInZoomControls(true);
+                  s.setDisplayZoomControls(false);
+              }
+
+              private void setupWeb(Bundle b) {
+                  WebSettings s = web.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);
+                  s.setDatabaseEnabled(true);
+                  s.setMediaPlaybackRequiresUserGesture(false);
+                  applyMode();
+
+                  // Google'a giden "bu bir uygulama" (X-Requested-With) basligini kaldir
+                  try {
+                      if (WebViewFeature.isFeatureSupported(WebViewFeature.REQUESTED_WITH_HEADER_ALLOW_LIST)) {
+                          WebSettingsCompat.setRequestedWithHeaderOriginAllowList(s, new HashSet<String>());
+                      }
+                  } catch (Exception e) { }
+
+                  // GIF betigini sayfa yuklenmeden ONCE enjekte et (fetch'i yakalamak icin)
+                  try {
+                      if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+                          Set<String> origins = new HashSet<>();
+                          origins.add("https://m.youtube.com");
+                          origins.add("https://www.youtube.com");
+                          WebViewCompat.addDocumentStartJavaScript(web, js, origins);
+                      }
+                  } catch (Exception e) { }
+
+                  CookieManager cm = CookieManager.getInstance();
+                  cm.setAcceptCookie(true);
+                  cm.setAcceptThirdPartyCookies(web, true);
+
+                  web.addJavascriptInterface(new Bridge(), "AndroidGif");
+
+                  web.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public boolean shouldOverrideUrlLoading(WebView v, WebResourceRequest r) {
+                          Uri uri = r.getUrl();
+                          String sch = uri.getScheme();
+                          String u = uri.toString();
+                          if (sch == null || (!sch.equals("http") && !sch.equals("https"))) return true;
+                          if (u.contains("accounts.google.com") && u.contains("signup")) {
+                              try {
+                                  startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse("https://accounts.google.com/signup")));
+                                  Toast.makeText(MainActivity.this,
+                                      "Hesabi tarayicida ac, sonra buraya donup giris yap", Toast.LENGTH_LONG).show();
+                                  return true;
+                              } catch (Exception e) { return false; }
+                          }
+                          return false;
+                      }
+
+                      @Override
+                      public void onPageFinished(WebView v, String url) {
+                          super.onPageFinished(v, url);
+                          if (url != null && url.contains("youtube.com")) {
+                              v.evaluateJavascript(js, null);
+                          }
+                      }
+                  });
+
+                  web.setWebChromeClient(new WebChromeClient() {
+                      @Override
+                      public void onProgressChanged(WebView view, int p) {
+                          if (progress == null) return;
+                          if (p < 100) {
+                              progress.animate().cancel();
+                              progress.setAlpha(1f);
+                              progress.animate().scaleX(p / 100f).setDuration(250).start();
+                          } else {
+                              progress.animate().scaleX(1f).setDuration(200).withEndAction(() ->
+                                  progress.animate().alpha(0f).setDuration(300).withEndAction(() ->
+                                      progress.setScaleX(0f)).start()).start();
+                          }
+                      }
+
+                      @Override
+                      public void onShowCustomView(View view, CustomViewCallback cb) {
+                          if (customView != null) { cb.onCustomViewHidden(); return; }
+                          customView = view;
+                          customCb = cb;
+                          web.setVisibility(View.GONE);
+                          root.addView(view, new FrameLayout.LayoutParams(-1, -1));
+                          getWindow().getDecorView().setSystemUiVisibility(
+                              View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                              | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+                      }
+
+                      @Override
+                      public void onHideCustomView() {
+                          if (customView == null) return;
+                          root.removeView(customView);
+                          customView = null;
+                          web.setVisibility(View.VISIBLE);
+                          getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+                          if (customCb != null) customCb.onCustomViewHidden();
+                      }
+                  });
+
+                  if (b == null) web.loadUrl(home());
+                  else web.restoreState(b);
+              }
+
+              // ---------- Animasyonlu ilerleme cubugu ----------
+              private void buildProgress() {
+                  progress = new View(this);
+                  GradientDrawable g = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
+                      new int[]{0xFF7C3AED, 0xFFFF4FA3, 0xFF3EA6FF});
+                  progress.setBackground(g);
+                  progress.setPivotX(0f);
+                  progress.setScaleX(0f);
+                  root.addView(progress, new FrameLayout.LayoutParams(-1, dp(3), Gravity.TOP));
+              }
+
+              // ---------- Animasyonlu menu ----------
+              private GradientDrawable shape(int color, int radiusDp, boolean oval) {
+                  GradientDrawable g = new GradientDrawable();
+                  g.setColor(color);
+                  if (oval) g.setShape(GradientDrawable.OVAL);
+                  else g.setCornerRadius(dp(radiusDp));
+                  return g;
+              }
+
+              private void buildMenu() {
+                  dim = new View(this);
+                  dim.setBackgroundColor(0xAA000000);
+                  dim.setAlpha(0f);
+                  dim.setVisibility(View.GONE);
+                  dim.setOnClickListener(v -> { if (menuOpen) toggleMenu(); });
+                  root.addView(dim, new FrameLayout.LayoutParams(-1, -1));
+
+                  menuBox = new LinearLayout(this);
+                  menuBox.setOrientation(LinearLayout.VERTICAL);
+                  menuBox.setGravity(Gravity.END);
+                  FrameLayout.LayoutParams mlp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.END);
+                  mlp.setMargins(0, 0, dp(16), dp(158));
+                  root.addView(menuBox, mlp);
+
+                  for (int i = 0; i < LABELS.length; i++) {
+                      final int idx = i;
+                      TextView t = new TextView(this);
+                      t.setText(i == 6 ? modeLabel() : LABELS[i]);
+                      t.setTextColor(Color.WHITE);
+                      t.setTextSize(16f);
+                      t.setTypeface(Typeface.DEFAULT_BOLD);
+                      t.setPadding(dp(20), dp(12), dp(20), dp(12));
+                      t.setBackground(shape(0xF22A1A4D, 24, false));
+                      t.setElevation(dp(6));
+                      t.setVisibility(View.GONE);
+                      t.setOnClickListener(v -> {
+                          v.animate().scaleX(.9f).scaleY(.9f).setDuration(80).start();
+                          toggleMenu();
+                          onMenu(idx);
+                      });
+                      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+                      lp.gravity = Gravity.END;
+                      lp.bottomMargin = dp(10);
+                      menuBox.addView(t, lp);
+                      items.add(t);
+                  }
+
+                  fab = new TextView(this);
+                  fab.setText("+");
+                  fab.setTextSize(30f);
+                  fab.setTextColor(Color.WHITE);
+                  fab.setGravity(Gravity.CENTER);
+                  fab.setBackground(shape(0xFFFF4FA3, 0, true));
+                  fab.setElevation(dp(8));
+                  fab.setScaleX(0f);
+                  fab.setScaleY(0f);
+                  fab.setOnClickListener(v -> toggleMenu());
+                  FrameLayout.LayoutParams flp = new FrameLayout.LayoutParams(dp(56), dp(56), Gravity.BOTTOM | Gravity.END);
+                  flp.setMargins(0, 0, dp(16), dp(90));
+                  root.addView(fab, flp);
+              }
+
+              private void toggleMenu() {
+                  menuOpen = !menuOpen;
+                  ObjectAnimator.ofFloat(fab, "rotation", fab.getRotation(), menuOpen ? 135f : 0f)
+                      .setDuration(300).start();
+                  fab.animate().cancel();
+                  fab.animate().scaleX(.85f).scaleY(.85f).setDuration(90).withEndAction(() ->
+                      fab.animate().scaleX(1f).scaleY(1f).setDuration(260)
+                          .setInterpolator(new OvershootInterpolator(3f)).start()).start();
+
+                  final int n = items.size();
+                  if (menuOpen) {
+                      dim.animate().cancel();
+                      dim.setVisibility(View.VISIBLE);
+                      dim.animate().alpha(1f).setDuration(220).start();
+                      for (int i = 0; i < n; i++) {
+                          TextView t = items.get(i);
+                          t.animate().cancel();
+                          t.setVisibility(View.VISIBLE);
+                          t.setAlpha(0f);
+                          t.setTranslationY(dp(40));
+                          t.setTranslationX(dp(30));
+                          t.setScaleX(.5f);
+                          t.setScaleY(.5f);
+                          t.animate().alpha(1f).translationX(0f).translationY(0f).scaleX(1f).scaleY(1f)
+                              .setStartDelay((n - 1 - i) * 55L).setDuration(320)
+                              .setInterpolator(new OvershootInterpolator(1.8f)).start();
+                      }
+                  } else {
+                      dim.animate().cancel();
+                      dim.animate().alpha(0f).setDuration(200).withEndAction(() -> {
+                          if (!menuOpen) dim.setVisibility(View.GONE);
+                      }).start();
+                      for (int i = 0; i < n; i++) {
+                          final TextView t = items.get(i);
+                          t.animate().cancel();
+                          t.animate().alpha(0f).translationY(dp(30)).scaleX(.6f).scaleY(.6f)
+                              .setStartDelay(i * 30L).setDuration(180)
+                              .setInterpolator(new AccelerateInterpolator())
+                              .withEndAction(() -> { if (!menuOpen) t.setVisibility(View.GONE); }).start();
+                      }
+                  }
+              }
+
+              private void onMenu(int idx) {
+                  switch (idx) {
+                      case 0: web.loadUrl(home()); break;
+                      case 1: if (web.canGoBack()) web.goBack(); break;
+                      case 2: web.reload(); break;
+                      case 3: web.evaluateJavascript("window.__gifOpen&&window.__gifOpen()", null); break;
+                      case 4:
+                          CookieManager.getInstance().removeAllCookies(null);
+                          CookieManager.getInstance().flush();
+                          web.clearCache(true);
+                          Toast.makeText(this, "Cerezler temizlendi", Toast.LENGTH_SHORT).show();
+                          web.loadUrl(home());
+                          break;
+                      case 5: showGifLog(); break;
+                      case 6:
+                          desktop = !desktop;
+                          getSharedPreferences("cfg", MODE_PRIVATE).edit().putBoolean("desktop", desktop).apply();
+                          applyMode();
+                          items.get(6).setText(modeLabel());
+                          Toast.makeText(this, desktop ? "Masaustu mod" : "Mobil mod", Toast.LENGTH_SHORT).show();
+                          web.loadUrl(home());
+                          break;
+                      default: break;
+                  }
+              }
+
+              private void showGifLog() {
+                  web.evaluateJavascript("(window.__gifLog||[]).join('\\n')", v -> {
+                      String txt;
+                      try {
+                          txt = (String) new org.json.JSONTokener(v).nextValue();
+                      } catch (Exception e) {
+                          txt = v;
+                      }
+                      if (txt == null || txt.isEmpty()) txt = "Kayit yok. Once bir GIF secip yorumu gonder.";
+                      final String full = txt;
+                      String shown = full.length() > 3000 ? full.substring(full.length() - 3000) : full;
+                      new AlertDialog.Builder(MainActivity.this)
+                          .setTitle("GIF kaydi")
+                          .setMessage(shown)
+                          .setPositiveButton("Kopyala", (d, w) -> copyText(full, "Kayit kopyalandi"))
+                          .setNegativeButton("Kapat", null)
+                          .show();
+                  });
+              }
+
+              // ---------- Acilis ekrani (logo + GifYa) ----------
+              private void buildSplash() {
+                  splash = new FrameLayout(this);
+                  splash.setBackgroundColor(0xFF7C3AED);
+                  splash.setClickable(true);
+
+                  LinearLayout col = new LinearLayout(this);
+                  col.setOrientation(LinearLayout.VERTICAL);
+                  col.setGravity(Gravity.CENTER);
+
+                  final ImageView logo = new ImageView(this);
+                  logo.setImageResource(R.drawable.ic_launcher_foreground);
+                  col.addView(logo, new LinearLayout.LayoutParams(dp(200), dp(200)));
+
+                  final TextView name = new TextView(this);
+                  name.setText("GifYa");
+                  name.setTextColor(Color.WHITE);
+                  name.setTextSize(38f);
+                  name.setTypeface(Typeface.DEFAULT_BOLD);
+                  name.setLetterSpacing(0.08f);
+                  col.addView(name, new LinearLayout.LayoutParams(-2, -2));
+
+                  splash.addView(col, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
+                  root.addView(splash, new FrameLayout.LayoutParams(-1, -1));
+
+                  logo.setScaleX(0f);
+                  logo.setScaleY(0f);
+                  logo.setRotation(-180f);
+                  name.setAlpha(0f);
+                  name.setTranslationY(dp(40));
+
+                  logo.animate().scaleX(1f).scaleY(1f).rotation(0f).setDuration(700)
+                      .setInterpolator(new OvershootInterpolator(1.6f)).withEndAction(() -> {
+                          pulse = ObjectAnimator.ofPropertyValuesHolder(logo,
+                              PropertyValuesHolder.ofFloat("scaleX", 1f, 1.08f),
+                              PropertyValuesHolder.ofFloat("scaleY", 1f, 1.08f));
+                          pulse.setDuration(500);
+                          pulse.setRepeatCount(ObjectAnimator.INFINITE);
+                          pulse.setRepeatMode(ObjectAnimator.REVERSE);
+                          pulse.start();
+                      }).start();
+                  name.animate().alpha(1f).translationY(0f).setStartDelay(350).setDuration(500).start();
+
+                  handler.postDelayed(this::hideSplash, 2000);
+              }
+
+              private void hideSplash() {
+                  if (splash == null || splash.getVisibility() != View.VISIBLE) return;
+                  if (pulse != null) pulse.cancel();
+                  splash.animate().alpha(0f).scaleX(1.2f).scaleY(1.2f).setDuration(450).withEndAction(() -> {
+                      splash.setVisibility(View.GONE);
+                      fab.animate().scaleX(1f).scaleY(1f).setDuration(450)
+                          .setInterpolator(new OvershootInterpolator(2.5f)).start();
+                  }).start();
+              }
+
+              @Override
+              protected void onSaveInstanceState(Bundle out) {
+                  super.onSaveInstanceState(out);
+                  web.saveState(out);
+              }
+
+              @Override
+              protected void onPause() {
+                  super.onPause();
+                  CookieManager.getInstance().flush();
+              }
+
+              @Override
+              public void onBackPressed() {
+                  if (menuOpen) {
+                      toggleMenu();
+                  } else if (customView != null) {
+                      web.getWebChromeClient().onHideCustomView();
+                  } else if (web.canGoBack()) {
+                      web.goBack();
+                  } else {
+                      super.onBackPressed();
+                  }
+              }
+
+              private boolean okHost(String u) {
+                  try {
+                      URL x = new URL(u);
+                      if (!"https".equals(x.getProtocol())) return false;
+                      String h = x.getHost();
+                      return h.equals("tenor.com") || h.endsWith(".tenor.com")
+                          || h.equals("giphy.com") || h.endsWith(".giphy.com");
+                  } catch (Exception e) {
+                      return false;
+                  }
+              }
+
+              public class Bridge {
+                  @JavascriptInterface
+                  public void copy(final String text) {
+                      runOnUiThread(() -> copyText(text, "GIF linki kopyalandi"));
+                  }
+
+                  // GIF dosyasini indir (resim eki denemesi icin)
+                  @JavascriptInterface
+                  public void fetchBin(final String url, final String id) {
+                      new Thread(() -> {
+                          String enc = "";
+                          try {
+                              if (!okHost(url)) throw new Exception("host");
+                              HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+                              c.setConnectTimeout(12000);
+                              c.setReadTimeout(20000);
+                              c.setRequestProperty("User-Agent", UA_MOBILE);
+                              InputStream in = c.getInputStream();
+                              ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                              byte[] buf = new byte[16384];
+                              int n;
+                              int total = 0;
+                              while ((n = in.read(buf)) > 0) {
+                                  bo.write(buf, 0, n);
+                                  total += n;
+                                  if (total > 6 * 1024 * 1024) throw new Exception("buyuk");
+                              }
+                              in.close();
+                              enc = Base64.encodeToString(bo.toByteArray(), Base64.NO_WRAP);
+                          } catch (Exception e) {
+                              enc = "";
+                          }
+                          final String out = enc;
+                          final int cid;
+                          try { cid = Integer.parseInt(id); } catch (Exception e) { return; }
+                          runOnUiThread(() ->
+                              web.evaluateJavascript("window.__gifBin(" + cid + ",'" + out + "')", null));
+                      }).start();
+                  }
+
+                  @JavascriptInterface
+                  public void fetch(final String url, final String id) {
+                      new Thread(() -> {
+                          String out = "";
+                          try {
+                              boolean tenor = url.startsWith("https://tenor.com/");
+                              if (!tenor && !url.startsWith("https://api.giphy.com/")) throw new Exception("bad url");
+                              HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+                              c.setConnectTimeout(12000);
+                              c.setReadTimeout(12000);
+                              c.setRequestProperty("User-Agent", UA_MOBILE);
+                              c.setRequestProperty("Accept-Language", "en-US,en;q=0.9");
+                              InputStream in = c.getInputStream();
+                              ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                              byte[] buf = new byte[8192];
+                              int n;
+                              while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+                              in.close();
+                              String body = bo.toString("UTF-8");
+                              if (tenor) {
+                                  Matcher m = Pattern.compile("<figure[\\s\\S]*?</figure>").matcher(body);
+                                  StringBuilder sb = new StringBuilder();
+                                  int k = 0;
+                                  while (m.find() && k < 60) { sb.append(m.group()); k++; }
+                                  out = sb.length() > 0 ? sb.toString() : body.substring(0, Math.min(body.length(), 20000));
+                              } else {
+                                  out = body;
+                              }
+                          } catch (Exception e) {
+                              out = "";
+                          }
+                          final String enc = Base64.encodeToString(out.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
+                          final int cid;
+                          try { cid = Integer.parseInt(id); } catch (Exception e) { return; }
+                          runOnUiThread(() ->
+                              web.evaluateJavascript("window.__gifCb(" + cid + ",'" + enc + "')", null));
+                      }).start();
+                  }
+              }
+          }
+          EOF
+
+          cat > app/src/main/assets/gif.js << 'EOF'
+          (function () {
+            if (window.__ytgif) return;
+            window.__ytgif = 1;
+
+            var KEY = 'ep8HC0NTMPGcHgJagKBxVHFzrXrrwvaX';
+            var MARK = /\{gifya:(\d+)\}/;
+            var CC = '/youtubei/v1/comment/create_comment';
+            var mode = 'tenor';
+            var target = null, btn = null, panel = null, grid = null, input = null, back = null;
+            var tabT = null, tabG = null;
+            var cbs = {}, cid = 0, timer = null, open = false, gmap = {};
+            window.__gifLog = window.__gifLog || [];
+
+            function log(s) {
+              window.__gifLog.push(new Date().toISOString().substr(11, 8) + ' ' + s);
+              if (window.__gifLog.length > 80) window.__gifLog.shift();
+            }
+
+            log('betik basladi, readyState=' + document.readyState + ', ' +
+              (/Mobile/.test(navigator.userAgent) ? 'mobil' : 'masaustu') + ' mod');
+
+            // Masaustu modda sayfa genis oldugu icin arayuzu buyut
+            function K() {
+              var w = window.innerWidth || 360;
+              var sw = (window.screen && window.screen.width) || 360;
+              var k = w / sw;
+              return k > 1.3 ? k : 1;
+            }
+
+            function mk(tag, css, txt) {
+              var e = document.createElement(tag);
+              if (css) e.style.cssText = css;
+              if (txt) e.textContent = txt;
+              return e;
+            }
+
+            function toast(msg) {
+              var k = K();
+              var t = mk('div',
+                'position:fixed;left:50%;bottom:' + (90 / k) + 'px;transform:translateX(-50%);z-index:2147483647;' +
+                'background:#222;color:#fff;padding:10px 16px;border-radius:20px;font:14px sans-serif;' +
+                'max-width:80%;text-align:center;animation:ygItem .3s both;box-shadow:0 2px 8px rgba(0,0,0,.6);zoom:' + k + ';',
+                msg);
+              document.documentElement.appendChild(t);
+              setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, 4500);
+            }
+
+            function b64bytes(b64) {
+              var bin = atob(b64);
+              var bytes = new Uint8Array(bin.length);
+              for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+              return bytes;
+            }
+
+            window.__gifCb = function (id, b64) {
+              var f = cbs[id];
+              delete cbs[id];
+              if (!f) return;
+              try { f(new TextDecoder('utf-8').decode(b64bytes(b64))); } catch (e) { f(''); }
+            };
+
+            window.__gifBin = function (id, b64) {
+              var f = cbs[id];
+              delete cbs[id];
+              if (!f) return;
+              if (!b64) { f(null); return; }
+              try {
+                var bytes = b64bytes(b64);
+                var head = String.fromCharCode(bytes[0], bytes[1], bytes[2], bytes[3]);
+                var webp = head === 'RIFF';
+                f(new File([bytes], webp ? 'gifya.webp' : 'gifya.gif', { type: webp ? 'image/webp' : 'image/gif' }));
+              } catch (e) { f(null); }
+            };
+
+            function api(url, f) {
+              var id = ++cid;
+              cbs[id] = f;
+              AndroidGif.fetch(url, String(id));
+            }
+
+            function download(url, f) {
+              var id = ++cid;
+              cbs[id] = f;
+              AndroidGif.fetchBin(url, String(id));
+            }
+
+            // ---------- Yedek 1: tenorId ile yorum istegini yakala ----------
+            var origFetch = window.fetch;
+
+            function getBody(input, init) {
+              if (init && typeof init.body === 'string') return Promise.resolve(init.body);
+              if (typeof Request !== 'undefined' && input instanceof Request) return input.clone().text();
+              return Promise.resolve(null);
+            }
+
+            function sendGif(self, input, init, bodyStr) {
+              var id = MARK.exec(bodyStr)[1];
+              var obj;
+              try { obj = JSON.parse(bodyStr); } catch (e) {
+                log('govde JSON degil');
+                return origFetch.call(self, input, init);
+              }
+              var clean = String(obj.commentText || '').replace(MARK, '').trim();
+              var info = gmap[id] || {};
+              var tries = 0;
+
+              function doFetch(b) {
+                if (typeof Request !== 'undefined' && input instanceof Request) {
+                  return origFetch.call(self, new Request(input, { body: b }));
+                }
+                var ni = {};
+                for (var k in init) ni[k] = init[k];
+                ni.body = b;
+                return origFetch.call(self, input, ni);
+              }
+
+              function fallback() {
+                var o = JSON.parse(JSON.stringify(obj));
+                var link = info.link || ('https://tenor.com/view/gif-' + id);
+                o.commentText = (clean ? clean + ' ' : '') + link;
+                log('tenorId reddedildi, link olarak gonderildi');
+                toast('GIF reddedildi, link olarak gonderildi');
+                return doFetch(JSON.stringify(o));
+              }
+
+              function attempt() {
+                if (tries >= 3) return fallback();
+                tries++;
+                var o = JSON.parse(JSON.stringify(obj));
+                o.commentText = clean;
+                o.tenorId = String(id);
+                return doFetch(JSON.stringify(o)).then(function (res) {
+                  return res.clone().text().then(function (t) {
+                    var bad = !res.ok || /"error"|showErrorAction/.test(t.slice(0, 600));
+                    log('tenorId deneme ' + tries + ' -> ' + res.status + ' ' + t.slice(0, 160).replace(/\s+/g, ' '));
+                    if (!bad) {
+                      toast('GIF yorumu gonderildi');
+                      return res;
+                    }
+                    return attempt();
+                  });
+                });
+              }
+              return attempt();
+            }
+
+            if (origFetch) {
+              window.fetch = function (input, init) {
+                var url = '';
+                try { url = typeof input === 'string' ? input : ((input && input.url) || String(input)); } catch (e) { }
+                if (url.indexOf(CC) < 0) return origFetch.apply(this, arguments);
+                log('fetch yorum istegi yakalandi');
+                var self = this, args = arguments;
+                return getBody(input, init).then(function (b) {
+                  if (!b || !MARK.test(b)) { log('yorumda isaret yok'); return origFetch.apply(self, args); }
+                  return sendGif(self, input, init, b);
+                }, function () { return origFetch.apply(self, args); });
+              };
+            }
+
+            // XHR ile gonderen sayfalar icin
+            try {
+              var xo = XMLHttpRequest.prototype.open, xs = XMLHttpRequest.prototype.send;
+              XMLHttpRequest.prototype.open = function (m, u) {
+                this.__yu = String(u);
+                return xo.apply(this, arguments);
+              };
+              XMLHttpRequest.prototype.send = function (b) {
+                if (this.__yu && this.__yu.indexOf(CC) >= 0) {
+                  log('XHR yorum istegi yakalandi');
+                  if (typeof b === 'string' && MARK.test(b)) {
+                    try {
+                      var id = MARK.exec(b)[1];
+                      var o = JSON.parse(b);
+                      o.commentText = String(o.commentText || '').replace(MARK, '').trim();
+                      o.tenorId = String(id);
+                      var self = this;
+                      this.addEventListener('loadend', function () {
+                        log('XHR tenorId -> ' + self.status + ' ' + String(self.responseText).slice(0, 160).replace(/\s+/g, ' '));
+                      });
+                      return xs.call(this, JSON.stringify(o));
+                    } catch (e) { log('XHR hata ' + e); }
+                  }
+                }
+                return xs.apply(this, arguments);
+              };
+            } catch (e) { }
+
+            // ---------- Yontem 2: GIF'i resim eki olarak YouTube'un kendi kutusuna ver ----------
+            function tryAttach(file, el) {
+              var dt = new DataTransfer();
+              dt.items.add(file);
+              var node = el, found = null;
+              for (var d = 0; d < 9 && node && !found; d++) {
+                var ins = node.querySelectorAll ? node.querySelectorAll('input[type=file]') : [];
+                for (var i = 0; i < ins.length; i++) {
+                  var acc = ins[i].accept || '';
+                  log('dosya girisi bulundu, accept="' + acc + '"');
+                  if (!acc || /image|gif|webp/i.test(acc)) { found = ins[i]; break; }
+                }
+                node = node.parentElement;
+              }
+              if (!found) {
+                log('yorum kutusunda dosya girisi yok (resim eki arayuzu bu hesapta/surumde yok)');
+                return false;
+              }
+              try {
+                found.files = dt.files;
+                found.dispatchEvent(new Event('input', { bubbles: true }));
+                found.dispatchEvent(new Event('change', { bubbles: true }));
+                log('GIF dosya girisine verildi (' + file.size + ' bayt)');
+                return true;
+              } catch (e) {
+                log('dosya girisine verilemedi: ' + e);
+                return false;
+              }
+            }
+
+            // ---------- Arayuz ----------
+            function isEd(el) {
+              if (!el || el.nodeType !== 1) return false;
+              if (el.closest && el.closest('#ygif-panel,#ygif-btn')) return false;
+              if (el.closest && el.closest('ytm-searchbox,ytd-searchbox,form[role=search]')) return false;
+              return el.tagName === 'TEXTAREA' || el.isContentEditable === true;
+            }
+
+            function addCss() {
+              var s = document.createElement('style');
+              s.textContent =
+                '@keyframes ygPop{0%{transform:scale(0) rotate(-25deg);opacity:0}60%{transform:scale(1.25) rotate(6deg);opacity:1}100%{transform:scale(1) rotate(0)}}' +
+                '@keyframes ygGlow{0%,100%{box-shadow:0 0 0 0 rgba(62,166,255,.75)}50%{box-shadow:0 0 0 10px rgba(62,166,255,0)}}' +
+                '@keyframes ygUp{from{transform:translateY(100%)}to{transform:translateY(0)}}' +
+                '@keyframes ygDown{from{transform:translateY(0)}to{transform:translateY(100%)}}' +
+                '@keyframes ygItem{from{opacity:0;transform:scale(.6) translateY(16px)}to{opacity:1;transform:none}}' +
+                '@keyframes ygShim{0%{background-position:-400px 0}100%{background-position:400px 0}}' +
+                '@keyframes ygPick{0%{transform:scale(1);opacity:1}40%{transform:scale(.8)}100%{transform:scale(1.3);opacity:0}}' +
+                '@keyframes ygShake{0%,100%{transform:translateX(0)}25%{transform:translateX(-9px)}75%{transform:translateX(9px)}}' +
+                '@keyframes ygFade{from{opacity:0}to{opacity:1}}' +
+                '@keyframes ygFadeOut{from{opacity:1}to{opacity:0}}' +
+                '@keyframes ygSpin{from{transform:rotate(0)}to{transform:rotate(180deg)}}' +
+                '#ygif-btn{animation:ygPop .45s cubic-bezier(.2,1.2,.4,1),ygGlow 1.8s infinite .5s}' +
+                '#ygif-x:active{animation:ygSpin .3s}' +
+                '#ygif-in{transition:border-color .25s,box-shadow .25s}' +
+                '#ygif-in:focus{border-color:#3ea6ff!important;box-shadow:0 0 0 3px rgba(62,166,255,.3)}' +
+                '#ygif-grid img{transition:transform .15s}' +
+                '#ygif-grid img:active{transform:scale(.92)}';
+              document.documentElement.appendChild(s);
+            }
+
+            function tabStyle(active) {
+              return 'flex:1;text-align:center;padding:7px 4px;border-radius:14px;font:bold 13px sans-serif;' +
+                'transition:all .25s;' + (active ? 'background:#3ea6ff;color:#000;' : 'background:#333;color:#ccc;');
+            }
+
+            function setMode(m) {
+              mode = m;
+              tabT.style.cssText = tabStyle(m === 'tenor');
+              tabG.style.cssText = tabStyle(m === 'giphy');
+              load();
+            }
+
+            var wrap = null;
+
+            function build() {
+              addCss();
+
+              btn = mk('div',
+                'position:fixed;z-index:2147483646;display:none;padding:5px 12px;border-radius:14px;' +
+                'background:#3ea6ff;color:#000;font:bold 13px sans-serif;');
+              btn.id = 'ygif-btn';
+              btn.textContent = '[GIF]';
+              btn.addEventListener('mousedown', function (e) { e.preventDefault(); });
+              btn.addEventListener('click', function (e) { e.preventDefault(); openPanel(); });
+              document.documentElement.appendChild(btn);
+
+              back = mk('div', 'position:fixed;left:0;right:0;top:0;bottom:0;z-index:2147483646;display:none;background:rgba(0,0,0,.5);');
+              back.addEventListener('click', closePanel);
+              document.documentElement.appendChild(back);
+
+              panel = mk('div',
+                'position:fixed;left:0;right:0;bottom:0;height:60%;z-index:2147483647;display:none;' +
+                'background:#181818;border-top:2px solid #3ea6ff;border-radius:16px 16px 0 0;overflow:hidden;');
+              panel.id = 'ygif-panel';
+
+              wrap = mk('div', 'height:100%;display:flex;flex-direction:column;');
+
+              var head = mk('div', 'display:flex;gap:6px;padding:8px 8px 4px;align-items:center;');
+              input = mk('input',
+                'flex:1;min-width:0;padding:9px 12px;border-radius:10px;border:1px solid #444;background:#272727;' +
+                'color:#fff;font-size:15px;outline:none;');
+              input.id = 'ygif-in';
+              input.type = 'text';
+              input.placeholder = 'GifYa: ara...';
+              input.addEventListener('input', function () {
+                clearTimeout(timer);
+                timer = setTimeout(load, 450);
+              });
+              var close = mk('div', 'padding:4px 12px;color:#fff;font-size:22px;', '\u2715');
+              close.id = 'ygif-x';
+              close.addEventListener('click', closePanel);
+              head.appendChild(input);
+              head.appendChild(close);
+
+              var tabs = mk('div', 'display:flex;gap:6px;padding:4px 8px 6px;');
+              tabT = mk('div', tabStyle(true), 'Tenor');
+              tabG = mk('div', tabStyle(false), 'Giphy');
+              tabT.addEventListener('click', function () { if (mode !== 'tenor') setMode('tenor'); });
+              tabG.addEventListener('click', function () { if (mode !== 'giphy') setMode('giphy'); });
+              tabs.appendChild(tabT);
+              tabs.appendChild(tabG);
+
+              grid = mk('div',
+                'flex:1;overflow-y:auto;display:grid;grid-template-columns:repeat(3,1fr);' +
+                'gap:4px;padding:4px;align-content:start;');
+              grid.id = 'ygif-grid';
+              wrap.appendChild(head);
+              wrap.appendChild(tabs);
+              wrap.appendChild(grid);
+              panel.appendChild(wrap);
+              document.documentElement.appendChild(panel);
+            }
+
+            function clearGrid() {
+              while (grid.firstChild) grid.removeChild(grid.firstChild);
+            }
+
+            function skeleton() {
+              clearGrid();
+              for (var i = 0; i < 9; i++) {
+                grid.appendChild(mk('div',
+                  'height:110px;border-radius:6px;' +
+                  'background:linear-gradient(90deg,#2a2a2a 25%,#3d3d3d 50%,#2a2a2a 75%);' +
+                  'background-size:400px 100%;animation:ygShim 1.2s infinite linear;'));
+              }
+            }
+
+            function parseTenor(html) {
+              var out = [], seen = {};
+              var blocks = html.split(/<figure/i).slice(1);
+              blocks.forEach(function (b) {
+                var im = /-gif-(\d+)/.exec(b);
+                if (!im || seen[im[1]]) return;
+                var vm = /href="(\/view\/[^"]+)"/.exec(b);
+                var src = /(https:\/\/media\.tenor\.com\/[^"'\s>]+?\.(?:gif|webp))/i.exec(b) ||
+                          /(https:\/\/media\.tenor\.com\/[^"'\s>]+)/i.exec(b);
+                if (!src) return;
+                seen[im[1]] = 1;
+                var u = src[1].replace(/&amp;/g, '&');
+                out.push({
+                  id: im[1],
+                  thumb: u,
+                  full: u,
+                  tenor: true,
+                  link: 'https://tenor.com' + (vm ? vm[1] : '/view/gif-' + im[1])
+                });
+              });
+              return out;
+            }
+
+            function render(list) {
+              clearGrid();
+              if (!list.length) {
+                grid.appendChild(mk('div',
+                  'color:#aaa;padding:16px;grid-column:1/4;text-align:center;animation:ygShake .5s;',
+                  'Sonuc yok. Menu > GIF Hata Kaydi'));
+                return;
+              }
+              list.forEach(function (d, i) {
+                var im = mk('img',
+                  'width:100%;height:110px;object-fit:cover;border-radius:6px;background:#333;' +
+                  'animation:ygItem .4s both;animation-delay:' + Math.min(i * 35, 600) + 'ms;');
+                im.src = d.thumb;
+                im.addEventListener('click', function () {
+                  im.style.animation = 'ygPick .35s forwards';
+                  setTimeout(function () { pick(d); }, 250);
+                });
+                grid.appendChild(im);
+              });
+            }
+
+            function load() {
+              var q = input.value.trim();
+              skeleton();
+              if (mode === 'giphy') {
+                var url = q
+                  ? 'https://api.giphy.com/v1/gifs/search?api_key=' + KEY + '&limit=30&q=' + encodeURIComponent(q)
+                  : 'https://api.giphy.com/v1/gifs/trending?api_key=' + KEY + '&limit=30';
+                api(url, function (t) {
+                  var res = null;
+                  try { res = JSON.parse(t); } catch (e) { }
+                  var list = (res && res.data ? res.data : []).map(function (d) {
+                    var dn = d.images.downsized || d.images.fixed_width;
+                    return { id: d.id, thumb: d.images.fixed_width.url, full: dn.url, tenor: false, link: d.url };
+                  });
+                  render(list);
+                });
+              } else {
+                var turl = 'https://tenor.com/search/' +
+                  (q ? encodeURIComponent(q.replace(/\s+/g, '-')) : 'trending') + '-gifs';
+                api(turl, function (t) {
+                  var list = parseTenor(t || '');
+                  log('tenor arama "' + q + '": ' + list.length + ' sonuc, veri ' + (t || '').length + ' bayt' +
+                    (list.length ? '' : ' | ornek: ' + (t || '').slice(0, 200).replace(/\s+/g, ' ')));
+                  render(list);
+                });
+              }
+            }
+
+            function applyZoom() {
+              var k = K();
+              if (wrap) wrap.style.zoom = k;
+              if (btn) btn.style.zoom = k;
+              return k;
+            }
+
+            function openPanel() {
+              open = true;
+              applyZoom();
+              btn.style.display = 'none';
+              back.style.display = 'block';
+              back.style.animation = 'ygFade .3s both';
+              panel.style.display = 'block';
+              panel.style.animation = 'ygUp .35s cubic-bezier(.2,.9,.3,1) both';
+              input.value = '';
+              load();
+            }
+
+            function closePanel() {
+              if (!open) return;
+              panel.style.animation = 'ygDown .28s ease-in forwards';
+              back.style.animation = 'ygFadeOut .28s forwards';
+              setTimeout(function () {
+                open = false;
+                panel.style.display = 'none';
+                back.style.display = 'none';
+                place();
+              }, 280);
+            }
+
+            window.__gifOpen = function () {
+              if (panel && !open) openPanel();
+            };
+
+            function insertText(el, text) {
+              el.focus();
+              if (el.tagName === 'TEXTAREA') {
+                var setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
+                setter.call(el, (el.value ? el.value + ' ' : '') + text);
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+              } else {
+                var ok = false;
+                try { ok = document.execCommand('insertText', false, text); } catch (e) { }
+                if (!ok) {
+                  el.textContent = (el.textContent ? el.textContent + ' ' : '') + text;
+                  el.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+              }
+            }
+
+            // Secim akisi: 1) resim eki  2) tenorId (Tenor ise)  3) link
+            function pick(item) {
+              var el = target;
+              closePanel();
+              var live = el && document.documentElement.contains(el);
+              if (!live) {
+                AndroidGif.copy(item.link);
+                toast('Once yorum kutusuna bas. Link kopyalandi');
+                return;
+              }
+              toast('GIF indiriliyor...');
+              download(item.full || item.thumb, function (file) {
+                if (file && tryAttach(file, el)) {
+                  toast('GIF resim eki olarak eklendi, kutuyu kontrol et');
+                  return;
+                }
+                if (!file) log('GIF indirilemedi: ' + (item.full || item.thumb));
+                if (item.tenor) {
+                  gmap[item.id] = item;
+                  insertText(el, '{gifya:' + item.id + '}');
+                  toast('Tenor GIF hazir. Gonder tusuna bas (YouTube reddederse link gider)');
+                } else {
+                  insertText(el, item.link);
+                  toast('Resim eki yok, link eklendi');
+                }
+              });
+            }
+
+            function place() {
+              if (!btn || open) return;
+              if (!target || !document.documentElement.contains(target)) {
+                btn.style.display = 'none';
+                return;
+              }
+              var r = target.getBoundingClientRect();
+              if (r.width === 0 || r.height === 0) {
+                btn.style.display = 'none';
+                return;
+              }
+              var k = applyZoom();
+              var top = Math.min(r.bottom + 4, window.innerHeight - 36 * k);
+              btn.style.top = (Math.max(0, top) / k) + 'px';
+              btn.style.left = (Math.max(4, r.left) / k) + 'px';
+              btn.style.display = 'block';
+            }
+
+            build();
+
+            document.addEventListener('focusin', function (e) {
+              if (isEd(e.target)) {
+                target = e.target;
+                place();
+              }
+            }, true);
+
+            document.addEventListener('focusout', function () {
+              setTimeout(function () {
+                if (open) return;
+                var a = document.activeElement;
+                if (!isEd(a)) {
+                  target = null;
+                  btn.style.display = 'none';
+                }
+              }, 350);
+            }, true);
+
+            window.addEventListener('scroll', place, true);
+            window.addEventListener('resize', place);
+            setInterval(place, 500);
+          })();
+          EOF
+
+      - name: Lisanslari kabul et
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
+      - name: APK derle
+        run: gradle assembleDebug --no-daemon
+
+      - name: APK adini GifYa yap
+        run: cp app/build/outputs/apk/debug/app-debug.apk GifYa.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GifYa-apk
+          path: GifYa.apk
