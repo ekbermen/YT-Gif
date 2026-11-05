@@ -1,0 +1,442 @@
+name: Build YT GIF APK
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.9
+
+      - name: Android proje dosyalarini uret
+        run: |
+          mkdir -p app/src/main/java/com/ytgif/app app/src/main/assets
+
+          cat > settings.gradle << 'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = 'YTGif'
+          include ':app'
+          EOF
+
+          cat > build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application' version '8.5.2' apply false
+          }
+          EOF
+
+          cat > gradle.properties << 'EOF'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=false
+          EOF
+
+          cat > app/build.gradle << 'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+          android {
+              namespace 'com.ytgif.app'
+              compileSdk 34
+              defaultConfig {
+                  applicationId 'com.ytgif.app'
+                  minSdk 24
+                  targetSdk 34
+                  versionCode 1
+                  versionName '1.0'
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml << 'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET" />
+              <application
+                  android:label="YT GIF"
+                  android:usesCleartextTraffic="false"
+                  android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:configChanges="orientation|screenSize|keyboardHidden|smallestScreenSize|screenLayout"
+                      android:windowSoftInputMode="adjustResize">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                      </intent-filter>
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/java/com/ytgif/app/MainActivity.java << 'EOF'
+          package com.ytgif.app;
+
+          import android.app.Activity;
+          import android.graphics.Color;
+          import android.os.Bundle;
+          import android.util.Base64;
+          import android.view.View;
+          import android.view.ViewGroup;
+          import android.webkit.CookieManager;
+          import android.webkit.JavascriptInterface;
+          import android.webkit.WebChromeClient;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import android.widget.FrameLayout;
+
+          import java.io.ByteArrayOutputStream;
+          import java.io.InputStream;
+          import java.net.HttpURLConnection;
+          import java.net.URL;
+          import java.nio.charset.StandardCharsets;
+
+          public class MainActivity extends Activity {
+              private WebView web;
+              private FrameLayout root;
+              private View customView;
+              private WebChromeClient.CustomViewCallback customCb;
+              private String js = "";
+
+              private static final String UA = "Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36";
+
+              @Override
+              protected void onCreate(Bundle b) {
+                  super.onCreate(b);
+                  try {
+                      InputStream is = getAssets().open("gif.js");
+                      ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                      byte[] buf = new byte[8192];
+                      int n;
+                      while ((n = is.read(buf)) > 0) bo.write(buf, 0, n);
+                      js = bo.toString("UTF-8");
+                      is.close();
+                  } catch (Exception e) { }
+
+                  root = new FrameLayout(this);
+                  root.setBackgroundColor(Color.BLACK);
+                  web = new WebView(this);
+                  root.addView(web, new FrameLayout.LayoutParams(-1, -1));
+                  setContentView(root);
+
+                  WebSettings s = web.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);
+                  s.setDatabaseEnabled(true);
+                  s.setMediaPlaybackRequiresUserGesture(false);
+                  s.setUserAgentString(UA);
+                  s.setSupportMultipleWindows(false);
+
+                  CookieManager cm = CookieManager.getInstance();
+                  cm.setAcceptCookie(true);
+                  cm.setAcceptThirdPartyCookies(web, true);
+
+                  web.addJavascriptInterface(new Bridge(), "AndroidGif");
+
+                  web.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public void onPageFinished(WebView v, String url) {
+                          super.onPageFinished(v, url);
+                          if (url != null && url.contains("youtube.com")) {
+                              v.evaluateJavascript(js, null);
+                          }
+                      }
+                  });
+
+                  web.setWebChromeClient(new WebChromeClient() {
+                      @Override
+                      public void onShowCustomView(View view, CustomViewCallback cb) {
+                          if (customView != null) { cb.onCustomViewHidden(); return; }
+                          customView = view;
+                          customCb = cb;
+                          web.setVisibility(View.GONE);
+                          root.addView(view, new FrameLayout.LayoutParams(-1, -1));
+                          getWindow().getDecorView().setSystemUiVisibility(
+                              View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                              | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+                      }
+
+                      @Override
+                      public void onHideCustomView() {
+                          if (customView == null) return;
+                          root.removeView(customView);
+                          customView = null;
+                          web.setVisibility(View.VISIBLE);
+                          getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+                          if (customCb != null) customCb.onCustomViewHidden();
+                      }
+                  });
+
+                  if (b == null) web.loadUrl("https://m.youtube.com");
+                  else web.restoreState(b);
+              }
+
+              @Override
+              protected void onSaveInstanceState(Bundle out) {
+                  super.onSaveInstanceState(out);
+                  web.saveState(out);
+              }
+
+              @Override
+              protected void onPause() {
+                  super.onPause();
+                  CookieManager.getInstance().flush();
+              }
+
+              @Override
+              public void onBackPressed() {
+                  if (customView != null) {
+                      web.getWebChromeClient().onHideCustomView();
+                  } else if (web.canGoBack()) {
+                      web.goBack();
+                  } else {
+                      super.onBackPressed();
+                  }
+              }
+
+              public class Bridge {
+                  @JavascriptInterface
+                  public void fetch(final String url, final String id) {
+                      new Thread(new Runnable() {
+                          public void run() {
+                              String out = "{}";
+                              try {
+                                  if (!url.startsWith("https://api.giphy.com/")) throw new Exception("bad url");
+                                  HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+                                  c.setConnectTimeout(10000);
+                                  c.setReadTimeout(10000);
+                                  InputStream in = c.getInputStream();
+                                  ByteArrayOutputStream bo = new ByteArrayOutputStream();
+                                  byte[] buf = new byte[8192];
+                                  int n;
+                                  while ((n = in.read(buf)) > 0) bo.write(buf, 0, n);
+                                  in.close();
+                                  out = bo.toString("UTF-8");
+                              } catch (Exception e) { }
+                              final String enc = Base64.encodeToString(out.getBytes(StandardCharsets.UTF_8), Base64.NO_WRAP);
+                              final int cid;
+                              try { cid = Integer.parseInt(id); } catch (Exception e) { return; }
+                              runOnUiThread(new Runnable() {
+                                  public void run() {
+                                      web.evaluateJavascript("window.__gifCb(" + cid + ",'" + enc + "')", null);
+                                  }
+                              });
+                          }
+                      }).start();
+                  }
+              }
+          }
+          EOF
+
+          cat > app/src/main/assets/gif.js << 'EOF'
+          (function () {
+            if (window.__ytgif) return;
+            window.__ytgif = 1;
+
+            var KEY = 'ep8HC0NTMPGcHgJagKBxVHFzrXrrwvaX';
+            var target = null, btn = null, panel = null, grid = null, input = null;
+            var cbs = {}, cid = 0, timer = null, open = false;
+
+            window.__gifCb = function (id, b64) {
+              var f = cbs[id];
+              delete cbs[id];
+              if (!f) return;
+              try {
+                var bin = atob(b64);
+                var bytes = new Uint8Array(bin.length);
+                for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+                f(JSON.parse(new TextDecoder('utf-8').decode(bytes)));
+              } catch (e) { f(null); }
+            };
+
+            function api(url, f) {
+              var id = ++cid;
+              cbs[id] = f;
+              AndroidGif.fetch(url, String(id));
+            }
+
+            function isEd(el) {
+              if (!el || el.nodeType !== 1) return false;
+              if (el.closest && el.closest('#ytgif-panel,#ytgif-btn')) return false;
+              if (el.closest && el.closest('ytm-searchbox,ytd-searchbox,form[role=search]')) return false;
+              return el.tagName === 'TEXTAREA' || el.isContentEditable === true;
+            }
+
+            function mk(tag, css, txt) {
+              var e = document.createElement(tag);
+              if (css) e.style.cssText = css;
+              if (txt) e.textContent = txt;
+              return e;
+            }
+
+            function build() {
+              btn = mk('div',
+                'position:fixed;z-index:2147483646;display:none;padding:5px 12px;border-radius:14px;' +
+                'background:#3ea6ff;color:#000;font:bold 13px sans-serif;box-shadow:0 2px 6px rgba(0,0,0,.5);',
+                '[GIF]');
+              btn.id = 'ytgif-btn';
+              btn.addEventListener('mousedown', function (e) { e.preventDefault(); });
+              btn.addEventListener('click', function (e) { e.preventDefault(); openPanel(); });
+              document.documentElement.appendChild(btn);
+
+              panel = mk('div',
+                'position:fixed;left:0;right:0;bottom:0;height:55%;z-index:2147483647;display:none;' +
+                'flex-direction:column;background:#181818;border-top:2px solid #3ea6ff;');
+              panel.id = 'ytgif-panel';
+              var head = mk('div', 'display:flex;gap:6px;padding:8px;');
+              input = mk('input',
+                'flex:1;padding:8px 10px;border-radius:8px;border:1px solid #444;background:#272727;' +
+                'color:#fff;font-size:15px;outline:none;');
+              input.type = 'text';
+              input.placeholder = 'Giphy\'de ara...';
+              input.addEventListener('input', function () {
+                clearTimeout(timer);
+                timer = setTimeout(load, 400);
+              });
+              var close = mk('div', 'padding:6px 12px;color:#fff;font-size:20px;', '\u2715');
+              close.addEventListener('click', closePanel);
+              head.appendChild(input);
+              head.appendChild(close);
+              grid = mk('div',
+                'flex:1;overflow-y:auto;display:grid;grid-template-columns:repeat(3,1fr);' +
+                'gap:4px;padding:4px;align-content:start;');
+              panel.appendChild(head);
+              panel.appendChild(grid);
+              document.documentElement.appendChild(panel);
+            }
+
+            function load() {
+              var q = input.value.trim();
+              var url = q
+                ? 'https://api.giphy.com/v1/gifs/search?api_key=' + KEY + '&limit=30&q=' + encodeURIComponent(q)
+                : 'https://api.giphy.com/v1/gifs/trending?api_key=' + KEY + '&limit=30';
+              api(url, function (res) {
+                while (grid.firstChild) grid.removeChild(grid.firstChild);
+                var list = res && res.data ? res.data : [];
+                if (!list.length) {
+                  grid.appendChild(mk('div', 'color:#aaa;padding:12px;grid-column:1/4;', 'Sonuc yok'));
+                  return;
+                }
+                list.forEach(function (d) {
+                  var im = mk('img', 'width:100%;height:110px;object-fit:cover;border-radius:6px;background:#333;');
+                  im.src = d.images.fixed_width.url;
+                  im.addEventListener('click', function () { pick(d.url); });
+                  grid.appendChild(im);
+                });
+              });
+            }
+
+            function openPanel() {
+              open = true;
+              panel.style.display = 'flex';
+              btn.style.display = 'none';
+              input.value = '';
+              load();
+            }
+
+            function closePanel() {
+              open = false;
+              panel.style.display = 'none';
+              place();
+            }
+
+            function pick(url) {
+              var el = target;
+              closePanel();
+              if (!el) return;
+              el.focus();
+              if (el.tagName === 'TEXTAREA') {
+                var setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set;
+                setter.call(el, (el.value ? el.value + ' ' : '') + url);
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+              } else {
+                var ok = false;
+                try { ok = document.execCommand('insertText', false, url); } catch (e) { }
+                if (!ok) {
+                  el.textContent = (el.textContent ? el.textContent + ' ' : '') + url;
+                  el.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+              }
+            }
+
+            function place() {
+              if (!btn || open) return;
+              if (!target || !document.documentElement.contains(target)) {
+                btn.style.display = 'none';
+                return;
+              }
+              var r = target.getBoundingClientRect();
+              if (r.width === 0 || r.height === 0) {
+                btn.style.display = 'none';
+                return;
+              }
+              var vh = window.innerHeight;
+              var top = Math.min(r.bottom + 4, vh - 36);
+              btn.style.top = Math.max(0, top) + 'px';
+              btn.style.left = Math.max(4, r.left) + 'px';
+              btn.style.display = 'block';
+            }
+
+            build();
+
+            document.addEventListener('focusin', function (e) {
+              if (isEd(e.target)) {
+                target = e.target;
+                place();
+              }
+            }, true);
+
+            document.addEventListener('focusout', function () {
+              setTimeout(function () {
+                if (open) return;
+                var a = document.activeElement;
+                if (!isEd(a)) {
+                  target = null;
+                  btn.style.display = 'none';
+                }
+              }, 350);
+            }, true);
+
+            window.addEventListener('scroll', place, true);
+            window.addEventListener('resize', place);
+            setInterval(place, 500);
+          })();
+          EOF
+
+      - name: Lisanslari kabul et
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
+      - name: APK derle
+        run: gradle assembleDebug --no-daemon
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: YT-GIF-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
