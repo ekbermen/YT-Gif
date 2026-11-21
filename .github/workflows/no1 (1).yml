@@ -1,0 +1,336 @@
+name: No1 APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Android lisanslari
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.7'
+
+      - name: Gradle dosyalari
+        run: |
+          mkdir -p proj/app/src/main/java/com/no1/game proj/app/src/main/assets proj/app/src/main/res/drawable
+          cd proj
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+            repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+            repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "No1"
+          include ':app'
+          EOF
+          cat > build.gradle <<'EOF'
+          plugins { id 'com.android.application' version '8.5.2' apply false }
+          EOF
+          cat > gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2g
+          android.useAndroidX=false
+          EOF
+          cat > app/build.gradle <<'EOF'
+          plugins { id 'com.android.application' }
+          android {
+            namespace 'com.no1.game'
+            compileSdk 34
+            defaultConfig {
+              applicationId 'com.no1.game'
+              minSdk 24
+              targetSdk 34
+              versionCode 1
+              versionName '1.0'
+            }
+            compileOptions {
+              sourceCompatibility JavaVersion.VERSION_17
+              targetCompatibility JavaVersion.VERSION_17
+            }
+          }
+          EOF
+
+      - name: Android dosyalari
+        run: |
+          cd proj/app/src/main
+          cat > AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+            <application
+              android:label="No¹"
+              android:icon="@drawable/ic"
+              android:allowBackup="true"
+              android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+              <activity
+                android:name=".MainActivity"
+                android:exported="true"
+                android:configChanges="orientation|screenSize|keyboardHidden"
+                android:windowSoftInputMode="adjustResize">
+                <intent-filter>
+                  <action android:name="android.intent.action.MAIN"/>
+                  <category android:name="android.intent.category.LAUNCHER"/>
+                </intent-filter>
+              </activity>
+            </application>
+          </manifest>
+          EOF
+          cat > res/drawable/ic.xml <<'EOF'
+          <vector xmlns:android="http://schemas.android.com/apk/res/android"
+            android:width="108dp" android:height="108dp"
+            android:viewportWidth="108" android:viewportHeight="108">
+            <path android:fillColor="#0a1230" android:pathData="M0,0h108v108h-108z"/>
+            <path android:fillColor="#FFFFFF" android:pathData="M18,38h72v32h-72z"/>
+            <path android:fillColor="#2f5bff" android:pathData="M24,44h14v20h-14z"/>
+            <path android:fillColor="#111111" android:pathData="M46,48h38v12h-38z"/>
+          </vector>
+          EOF
+          cat > java/com/no1/game/MainActivity.java <<'EOF'
+          package com.no1.game;
+
+          import android.app.Activity;
+          import android.graphics.Color;
+          import android.os.Bundle;
+          import android.webkit.ValueCallback;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+
+          public class MainActivity extends Activity {
+            WebView w;
+
+            @Override
+            protected void onCreate(Bundle b) {
+              super.onCreate(b);
+              getWindow().setStatusBarColor(Color.parseColor("#0a1230"));
+              getWindow().setNavigationBarColor(Color.parseColor("#0a1230"));
+              w = new WebView(this);
+              setContentView(w);
+              WebSettings s = w.getSettings();
+              s.setJavaScriptEnabled(true);
+              s.setDomStorageEnabled(true);
+              w.setBackgroundColor(Color.parseColor("#0a1230"));
+              w.setWebViewClient(new WebViewClient());
+              w.loadUrl("file:///android_asset/index.html");
+            }
+
+            @Override
+            public void onBackPressed() {
+              w.evaluateJavascript("window.onBack()", new ValueCallback<String>() {
+                public void onReceiveValue(String v) {
+                  if (v != null && v.contains("exit")) finish();
+                }
+              });
+            }
+          }
+          EOF
+
+      - name: Oyun (HTML/JS)
+        run: |
+          cat > proj/app/src/main/assets/index.html <<'EOF'
+          <!DOCTYPE html>
+          <html><head><meta charset="utf-8">
+          <meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+          <title>No¹</title>
+          <style>
+          :root{--bg:#0a1230;--ac:#2f5bff}
+          *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+          body{margin:0;background:var(--bg);color:#fff;font-family:Arial,Helvetica,sans-serif;min-height:100vh}
+          button{font-family:inherit;color:#fff;border:0}
+          .top{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg);border-bottom:1px solid rgba(255,255,255,.08)}
+          .ib{width:42px;height:42px;border-radius:12px;background:rgba(255,255,255,.1);font-size:20px}
+          .title{flex:1;font-weight:700;font-size:17px}
+          .bal{font-size:14px;text-align:right;opacity:.95}.bal span{display:block;font-size:12px;opacity:.8}
+          .wrap{padding:12px}
+          .rec{display:flex;gap:10px;align-items:center;background:#3a2c08;border:1px solid #b8860b;border-radius:12px;padding:10px;margin-bottom:10px;font-size:15px}
+          .stage{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:46vh;gap:14px}
+          .rar{width:90%;max-width:420px;display:flex;justify-content:space-between;font-size:15px;font-weight:700}
+          .bar{width:90%;max-width:420px;height:6px;border-radius:4px;background:rgba(255,255,255,.1);overflow:hidden;margin-top:-8px}
+          .bar i{display:block;height:100%}
+          .plate{display:flex;align-items:stretch;background:#f2f2f5;color:#111;border:2px solid #222;overflow:hidden;font-family:Arial,Helvetica,sans-serif;font-weight:700;margin:0 auto}
+          .pm{flex:1;display:flex;align-items:center;justify-content:center;white-space:nowrap}
+          .ps{display:flex;align-items:center;justify-content:center;color:#fff}
+          .pr{border-left:2px solid #222;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1}
+          .row{display:flex;gap:8px;width:100%;max-width:420px}
+          .btn{flex:1;padding:13px 6px;border-radius:12px;background:rgba(255,255,255,.12);font-size:15px;font-weight:700}
+          .btn.big{background:var(--ac);padding:17px;font-size:19px}
+          .btn.off{opacity:.35;pointer-events:none}
+          .pill{margin:14px auto 0;width:fit-content;padding:9px 18px;border-radius:20px;background:rgba(255,255,255,.1);font-size:15px}
+          .pill small{opacity:.6;margin-left:6px}
+          .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+          .card{border-radius:14px;padding:16px 10px;background:linear-gradient(135deg,var(--ac),rgba(255,255,255,.06));min-height:92px;display:flex;flex-direction:column;justify-content:flex-end;font-weight:700;font-size:14px;text-transform:uppercase;position:relative;overflow:hidden}
+          .card.w{grid-column:span 2;min-height:110px}
+          .card b{position:absolute;top:8px;right:12px;font-size:38px}
+          .item{border:2px solid;border-radius:14px;padding:10px;margin-bottom:10px;background:rgba(255,255,255,.05)}
+          .meta{text-align:center;margin:8px 0;font-size:14px}
+          .acts{display:flex;gap:6px}
+          .acts .btn{padding:9px 4px;font-size:13px}
+          .box{border-radius:14px;padding:14px;margin-bottom:10px;background:rgba(255,255,255,.07)}
+          .box h4{margin:0 0 4px}.box p{margin:0 0 10px;font-size:13px;opacity:.75}
+          .empty{text-align:center;opacity:.5;padding:40px 0}
+          .crow{display:flex;justify-content:space-between;align-items:center;padding:16px;border-radius:12px;background:rgba(255,255,255,.07);margin-bottom:8px;font-size:17px}
+          .crow.on{background:var(--ac)}
+          .tag{display:inline-block;padding:2px 8px;border-radius:8px;font-size:12px;background:rgba(255,255,255,.12);margin-left:6px}
+          .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#fff;color:#111;padding:10px 18px;border-radius:20px;font-size:14px;z-index:20;max-width:90%;text-align:center}
+          .tr{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.08);font-size:15px}
+          input{width:100%;padding:12px;border-radius:10px;border:0;background:rgba(255,255,255,.12);color:#fff;font-size:16px}
+          .pg{height:8px;border-radius:5px;background:rgba(255,255,255,.12);overflow:hidden;margin:6px 0 10px}.pg i{display:block;height:100%;background:var(--ac)}
+          </style></head><body><div id="app"></div>
+          <script>
+          const R=n=>Math.floor(Math.random()*n),pick=a=>a[R(a.length)],pad=(n,l)=>String(n).padStart(l,'0'),dg=l=>pad(R(Math.pow(10,l)),l);
+          const LET=(s,n)=>Array.from({length:n},()=>pick(s.split(''))).join('');
+          const fmt=n=>Math.round(n).toString().replace(/\B(?=(\d{3})+(?!\d))/g,' ');
+          const RUL='АВЕКМНОРСТУХ',LAT='ABCDEFGHJKLMNPRSTUVYZ';
+          const RUREG=['77','97','99','177','197','199','777','797','799','78','98','178','50','90','150','190','750','52','152','16','116','716','61','161','761','63','163','02','102','72','74','174','54','154','24','124','66','96','196','59','159','23','93','123','193','180','01','07'];
+          function digs(l){const r=Math.random();if(l>=3){if(r<.04)return String(R(10)).repeat(l);if(r<.07){const s=R(8);let o='';for(let i=0;i<l;i++)o+=(s+i)%10;return o}if(r<.10)return '0'.repeat(l-1)+(1+R(9))}return dg(l)}
+          const CT={
+          RU:{n:'Rusya',f:'🇷🇺',a:'',rus:1,gen(){const a=LET(RUL,1),b=LET(RUL,2),d=digs(3);return{m:a+d+b,r:pick(RUREG),d,L:a+b}}},
+          TR:{n:'Türkiye',f:'🇹🇷',a:'TR',col:'#1a3fb0',gen(){const nl=pick([1,2,2,3,3,3]),L=LET(LAT,nl),d=digs(nl==3?pick([2,3]):pick([3,4]));return{m:pad(1+R(81),2)+' '+L+' '+d,r:'',d,L}}},
+          AZ:{n:'Azerbaycan',f:'🇦🇿',a:'AZ',col:'#0f7fb5',gen(){const L=LET('ABCDEFGHIJKLMNOPQRSTUVXYZ',2),d=digs(3);return{m:pick(['10','90','77','99','01','12','20','30','50','60','70','85'])+' - '+L+' - '+d,r:'',d,L}}},
+          KZ:{n:'Kazakistan',f:'🇰🇿',a:'KZ',col:'#0aa3c2',gen(){const d=digs(3),L=LET('ABCEHKMOPTXY',3);return{m:d+' '+L,r:pad(1+R(20),2),d,L}}},
+          BY:{n:'Belarus',f:'🇧🇾',a:'BY',col:'#c8202f',gen(){const d=digs(4),L=LET('ABEIKMHOPCTX',2);return{m:d+' '+L+'-'+(1+R(7)),r:'',d,L}}},
+          UA:{n:'Ukrayna',f:'🇺🇦',a:'UA',col:'#1c5fd0',gen(){const a=LET(LAT,2),b=LET(LAT,2),d=digs(4);return{m:a+' '+d+' '+b,r:'',d,L:a+b}}},
+          GE:{n:'Gürcistan',f:'🇬🇪',a:'GE',col:'#b8202f',gen(){const a=LET(LAT,2),b=LET(LAT,2),d=digs(3);return{m:a+'-'+d+'-'+b,r:'',d,L:a+b}}},
+          UZ:{n:'Özbekistan',f:'🇺🇿',a:'UZ',col:'#1aa05a',gen(){const a=LET(LAT,1),b=LET(LAT,2),d=digs(3);return{m:pick(['01','10','20','25','30','40','50','60','70','75','80','85','90'])+' '+a+' '+d+' '+b,r:'',d,L:a+b}}},
+          DE:{n:'Almanya',f:'🇩🇪',a:'D',col:'#1c3fa0',gen(){const L=LET(LAT,pick([1,2])),d=digs(pick([1,2,3,4]));return{m:pick(['B','M','HH','K','F','S','D','L','N','HB'])+' '+L+' '+d,r:'',d,L}}},
+          PL:{n:'Polonya',f:'🇵🇱',a:'PL',col:'#1c3fa0',gen(){const Z=pick(['WA','WX','KR','PO','GD','WR','LU','WE','KK','SK']),d=digs(5);return{m:Z+' '+d,r:'',d,L:Z}}}
+          };
+          const KEYS=Object.keys(CT);
+          const BASE=[120,900,6000,40000,300000,2500000];
+          const TN=['Sıradan','Özel','Nadir','Epik','Efsanevi','Mitik'];
+          const TC=['#9aa4b2','#4cd964','#3b9bff','#b46cff','#ffb020','#ff3b5c'];
+          const THEMES={blue:['#0a1230','#2f5bff'],dark:['#0b0b0e','#7a7a88'],purple:['#180a30','#9b5bff'],green:['#07201a','#1fbf75'],red:['#240a10','#ff4560']};
+          const rev=x=>x.split('').reverse().join('');
+          function score(p){let d=p.d,L=p.L,s=0;const same=x=>x.length>1&&x.split('').every(c=>c==x[0]);
+           if(same(d)&&d.length>=3)s+=5;else if(/(.)\1\1/.test(d))s+=3;else if(/(.)\1/.test(d))s+=1;
+           if(/^00/.test(d))s+=2;
+           if(/0123|1234|2345|3456|4567|5678|6789|9876|8765|7654|6543|5432|4321|3210/.test(d))s+=4;else if(/012|123|234|345|456|567|678|789|987|876|765|654|543|432|321|210/.test(d))s+=2;
+           if(d.length>=3&&d===rev(d))s+=2;
+           if(same(L)&&L.length>=2)s+=2;
+           if(['777','999','001','007','100','500','888','000','666','555'].indexOf(d)>=0)s+=2;
+           if(/^\d00$|^\d000$/.test(d))s+=2;
+           if(/^(\d)\1+$/.test(p.r||''))s+=1;
+           return s}
+          const tier=s=>s>=10?5:s>=7?4:s>=5?3:s>=3?2:s>=2?1:0;
+          let S,page='gen',cur=null,resetAsk=false,simCache={};
+          const def=()=>({money:500,gems:0,name:'Oyuncu',country:'TR',coll:[],safe:[],fav:[],up:{luck:0,sell:0,garage:0,safe:0},auto:{on:false,max:0},st:{gen:0,sold:0,earned:0,tier:[0,0,0,0,0,0],cases:0,rec:0},task:{day:'',p:{gen:0,sell:0,rare:0,case:0},done:{}},ach:{},theme:'blue',offers:[]});
+          const newOffer=()=>({t:R(4),m:+(1.3+Math.random()*.8).toFixed(2)});
+          function load(){try{S=Object.assign(def(),JSON.parse(localStorage.getItem('no1')||'{}'))}catch(e){S=def()}if(!S.offers||S.offers.length<3)S.offers=[newOffer(),newOffer(),newOffer()];ensureDay()}
+          function save(){try{localStorage.setItem('no1',JSON.stringify(S))}catch(e){}}
+          function ensureDay(){const d=new Date().toDateString();if(S.task.day!==d)S.task={day:d,p:{gen:0,sell:0,rare:0,case:0},done:{}}}
+          function task(k){ensureDay();S.task.p[k]++}
+          const capC=()=>20+S.up.garage*10,capS=()=>10+S.up.safe*5;
+          function price(t){return Math.round(BASE[t]*(0.6+Math.random()*1.2)*(1+S.up.sell*.15))}
+          function roll(code){const c=CT[code];let best=null;const n=1+S.up.luck;for(let i=0;i<n;i++){const p=c.gen();p.c=code;p.s=score(p);if(!best||p.s>best.s)best=p}best.t=tier(best.s);best.v=price(best.t);best.id=Date.now()+'_'+R(99999);return best}
+          function rollMin(min,code){for(let i=0;i<20000;i++){const p=roll(code);if(p.t>=min)return p}return roll(code)}
+          function plate(p,k){k=k||1;const c=CT[p.c],w=Math.min(innerWidth*.9,420)*k,h=w*.23,fs=Math.min(h*.8,w*(p.r?.6:.76)/(p.m.length*.6));
+           return '<div class="plate" style="width:'+w+'px;height:'+h+'px;border-radius:'+(h*.12)+'px">'+(c.a?'<div class="ps" style="background:'+c.col+';font-size:'+(h*.25)+'px;width:'+(h*.7)+'px">'+c.a+'</div>':'')+'<div class="pm" style="font-size:'+fs+'px">'+p.m+'</div>'+(p.r?'<div class="pr" style="width:'+(w*.26)+'px;font-size:'+(h*.55)+'px">'+p.r+(c.rus?'<small style="font-size:'+(h*.16)+'px">RUS 🇷🇺</small>':'')+'</div>':'')+'</div>'}
+          function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),1800)}
+          function addMoney(v){S.money+=v;S.st.earned+=v}
+          function go(p){page=p;resetAsk=false;render();window.scrollTo(0,0)}
+          window.onBack=()=>{if(page==='gen')return 'exit';go(page==='menu'?'gen':'menu');return 'ok'};
+          function genNow(){const old=S.st.rec;cur=roll(S.country);S.st.gen++;S.st.tier[cur.t]++;task('gen');if(cur.t>=2)task('rare');if(cur.v>old){S.st.rec=cur.v;if(old>0)cur.rec=1}
+           if(S.auto.on&&cur.t<=S.auto.max){addMoney(cur.v);S.st.sold++;task('sell');cur.sold=1;cur.auto=1}save();render()}
+          function keepCur(){if(!cur||cur.sold||cur.kept)return;if(S.coll.length>=capC())return toast('Koleksiyon dolu! Garajı geliştir');S.coll.push(cur);cur.kept=1;save();render()}
+          function sellCur(){if(!cur||cur.sold||cur.kept)return;addMoney(cur.v);S.st.sold++;task('sell');cur.sold=1;save();render()}
+          function favCur(){if(!cur)return;favAdd(cur)}
+          function favAdd(p){if(S.fav.length>=50)return toast('Favori listesi dolu');if(S.fav.some(f=>f.m===p.m&&f.c===p.c))return toast('Zaten favoride');S.fav.push(JSON.parse(JSON.stringify(p)));save();toast('Favorilere eklendi')}
+          function sellColl(i){const p=S.coll.splice(i,1)[0];addMoney(p.v);S.st.sold++;task('sell');save();render()}
+          function sellSafe(i){const p=S.safe.splice(i,1)[0];addMoney(p.v);S.st.sold++;task('sell');save();render()}
+          function toSafe(i){if(S.safe.length>=capS())return toast('Kasa dolu');S.safe.push(S.coll.splice(i,1)[0]);save();render()}
+          function fromSafe(i){if(S.coll.length>=capC())return toast('Koleksiyon dolu');S.coll.push(S.safe.splice(i,1)[0]);save();render()}
+          function favDel(i){S.fav.splice(i,1);save();render()}
+          function sellTier0(){let n=0,g=0;S.coll=S.coll.filter(p=>{if(p.t===0){g+=p.v;n++;return false}return true});addMoney(g);S.st.sold+=n;for(let i=0;i<n;i++)task('sell');save();toast(n+' plaka satıldı +'+fmt(g)+' ₺');render()}
+          function setC(k){S.country=k;save();go('gen')}
+          const UP={luck:{t:'🍀 Şans',d:'Her seviye +1 deneme: daha iyi plaka çıkma şansı',b:400,m:25},sell:{t:'💰 Satış değeri',d:'Her seviye plaka fiyatına +%15',b:600,m:30},garage:{t:'🏠 Garaj',d:'Her seviye +10 koleksiyon yuvası',b:800,m:30},safe:{t:'🔒 Kasa',d:'Her seviye +5 kasa yuvası',b:1000,m:20}};
+          const upCost=k=>Math.round(UP[k].b*Math.pow(1.7,S.up[k]));
+          function buyUp(k){if(S.up[k]>=UP[k].m)return;const c=upCost(k);if(S.money<c)return toast('Yetersiz para');S.money-=c;S.up[k]++;save();render()}
+          function upCard(k){const u=UP[k],mx=S.up[k]>=u.m;return '<div class="box"><h4>'+u.t+' <span class="tag">Sv '+S.up[k]+'/'+u.m+'</span></h4><p>'+u.d+'</p><button class="btn big" style="font-size:15px;padding:12px" onclick="buyUp(\''+k+'\')">'+(mx?'Maksimum':fmt(upCost(k))+' ₺ ile geliştir')+'</button></div>'}
+          const CS=[{n:'Bronz kasa',p:500,min:1,ic:'📦'},{n:'Gümüş kasa',p:6000,min:2,ic:'🧰'},{n:'Altın kasa',p:60000,min:3,ic:'💼'},{n:'Elmas kasa',g:25,min:4,ic:'💎'}];
+          function openCase(i){const c=CS[i];if(c.p){if(S.money<c.p)return toast('Yetersiz para');S.money-=c.p}else{if(S.gems<c.g)return toast('Yetersiz elmas');S.gems-=c.g}
+           cur=rollMin(c.min,pick(KEYS));cur.fromCase=1;S.st.cases++;S.st.tier[cur.t]++;task('case');if(cur.v>S.st.rec)S.st.rec=cur.v;save();go('gen')}
+          const TK=[{k:'gen',n:30,r:300,g:0,t:'30 plaka üret'},{k:'sell',n:5,r:500,g:0,t:'5 plaka sat'},{k:'rare',n:1,r:1000,g:2,t:'Nadir veya üstü plaka bul'},{k:'case',n:1,r:800,g:1,t:'1 kasa aç'}];
+          function claimT(k){const t=TK.find(x=>x.k===k);if(S.task.p[k]<t.n||S.task.done[k])return;S.task.done[k]=1;S.money+=t.r;S.gems+=t.g;save();toast('+'+t.r+' ₺ '+(t.g?'+'+t.g+' 💎':''));render()}
+          const AC=[
+          {id:'g1',t:'İlk 100 plaka üret',f:()=>S.st.gen>=100,r:1000,g:1},
+          {id:'g2',t:'1000 plaka üret',f:()=>S.st.gen>=1000,r:15000,g:5},
+          {id:'e1',t:'Toplam 100 000 ₺ kazan',f:()=>S.st.earned>=100000,r:5000,g:2},
+          {id:'e2',t:'Toplam 1 000 000 ₺ kazan',f:()=>S.st.earned>=1000000,r:60000,g:10},
+          {id:'t2',t:'Nadir plaka bul',f:()=>S.st.tier[2]>0,r:2000,g:2},
+          {id:'t3',t:'Epik plaka bul',f:()=>S.st.tier[3]>0,r:10000,g:5},
+          {id:'t4',t:'Efsanevi plaka bul',f:()=>S.st.tier[4]>0,r:80000,g:15},
+          {id:'t5',t:'Mitik plaka bul',f:()=>S.st.tier[5]>0,r:500000,g:50},
+          {id:'c1',t:'Koleksiyonda 20 plaka',f:()=>S.coll.length>=20,r:3000,g:2},
+          {id:'k1',t:'10 kasa aç',f:()=>S.st.cases>=10,r:8000,g:5}];
+          function claimA(id){const a=AC.find(x=>x.id===id);if(S.ach[id]||!a.f())return;S.ach[id]=1;S.money+=a.r;S.gems+=a.g;save();toast('Ödül alındı');render()}
+          function sellOffer(oi,idx){const p=S.coll.splice(idx,1)[0],o=S.offers[oi];addMoney(Math.round(p.v*o.m));S.st.sold++;task('sell');S.offers[oi]=newOffer();save();render()}
+          function refOffers(){S.offers=[newOffer(),newOffer(),newOffer()];save();render()}
+          function setAuto(on,max){if(on!==null)S.auto.on=on;if(max!==null)S.auto.max=max;save();render()}
+          function setTheme(k){S.theme=k;applyTheme();save();render()}
+          function applyTheme(){const t=THEMES[S.theme]||THEMES.blue;document.documentElement.style.setProperty('--bg',t[0]);document.documentElement.style.setProperty('--ac',t[1])}
+          function worth(){return S.money+S.coll.concat(S.safe).reduce((a,p)=>a+p.v,0)}
+          function doReset(){if(!resetAsk){resetAsk=true;return render()}localStorage.removeItem('no1');cur=null;load();applyTheme();go('gen')}
+          const titles={gen:'Üretici',menu:'Menü',country:'Ülke',daily:'Günlük görevler',coll:'Koleksiyon',safe:'Kasa',garage:'Garaj',cases:'Kasalar',up:'Geliştirmeler',auto:'Otomatik satış',fav:'Favori plakalar',buy:'Plaka alımı',cat:'Nadirlik kataloğu',stats:'İstatistik',ach:'Başarımlar',rate:'Oyuncu sıralaması',prof:'Profil',set:'Ayarlar',theme:'Tema'};
+          const MENU=[['gen','Üretici','🔢',1],['daily','Günlük görevler','📝',1],['coll','Koleksiyon','🗂️'],['safe','Kasa','🔐'],['garage','Garaj','🏠'],['cases','Kasalar','🧰'],['up','Geliştirmeler','⬆️'],['auto','Otomatik satış','💸'],['fav','Favori plakalar','⭐'],['buy','Plaka alımı','🤝'],['cat','Nadirlik kataloğu','💎'],['stats','İstatistik','📊'],['ach','Başarımlar','🏅'],['rate','Oyuncu sıralaması','🏆'],['prof','Profil','🪪'],['set','Ayarlar','⚙️'],['theme','Tema','🎨']];
+          function head(){return '<div class="top"><button class="ib" onclick="go(\''+(page==='gen'?'menu':page==='menu'?'gen':'menu')+'\')">'+(page==='gen'?'☰':'←')+'</button><div class="title">'+titles[page]+'</div><div class="bal">'+fmt(S.money)+' ₺<span>💎 '+S.gems+'</span></div></div>'}
+          function itemList(arr,kind){if(!arr.length)return '<div class="empty">Boş</div>';
+           const idx=arr.map((p,i)=>i).sort((a,b)=>arr[b].v-arr[a].v);
+           return idx.slice(0,100).map(i=>{const p=arr[i];let a='';
+            if(kind==='coll')a='<button class="btn" onclick="sellColl('+i+')">Sat</button><button class="btn" onclick="toSafe('+i+')">🔒</button><button class="btn" onclick="favAdd(S.coll['+i+'])">⭐</button>';
+            if(kind==='safe')a='<button class="btn" onclick="sellSafe('+i+')">Sat</button><button class="btn" onclick="fromSafe('+i+')">Çıkar</button>';
+            if(kind==='fav')a='<button class="btn" onclick="favDel('+i+')">Kaldır</button>';
+            return '<div class="item" style="border-color:'+TC[p.t]+'">'+plate(p,.62)+'<div class="meta"><span style="color:'+TC[p.t]+'">'+TN[p.t]+'</span> · '+CT[p.c].f+' <b>'+fmt(p.v)+' ₺</b></div><div class="acts">'+a+'</div></div>'}).join('')}
+          function sim(){const k=S.country;if(simCache[k])return simCache[k];const o=[0,0,0,0,0,0],N=3000,l=S.up.luck;S.up.luck=0;for(let i=0;i<N;i++)o[roll(k).t]++;S.up.luck=l;return simCache[k]=o.map(x=>(x*100/N).toFixed(2))}
+          function body(){let h='';const c=CT[S.country];
+           if(page==='gen'){
+            if(cur&&cur.rec)h+='<div class="rec">🏆 <div><b>Yeni rekor</b><br><small>Plaka '+fmt(cur.v)+' ₺</small></div></div>';
+            h+='<div class="stage">';
+            if(cur){const st=cur.sold?(cur.auto?'Otomatik satıldı':'Satıldı'):cur.kept?'Koleksiyonda':'';
+             h+='<div class="rar"><span style="color:'+TC[cur.t]+'">'+TN[cur.t]+(cur.fromCase?' 🎁':'')+'</span><b>'+fmt(cur.v)+' ₺</b></div><div class="bar"><i style="width:'+((cur.t+1)*100/6)+'%;background:'+TC[cur.t]+'"></i></div><div style="opacity:'+(cur.sold?.4:1)+'">'+plate(cur)+'</div>'+(st?'<div style="opacity:.7">'+st+'</div>':'')+
+             '<div class="row"><button class="btn '+(cur.sold||cur.kept?'off':'')+'" onclick="keepCur()">Sakla</button><button class="btn '+(cur.sold||cur.kept?'off':'')+'" onclick="sellCur()">Sat</button><button class="btn" onclick="favCur()">⭐</button></div>'}
+            else h+='<div class="empty">Plaka üretmek için dokun</div>';
+            h+='<div class="row"><button class="btn big" onclick="genNow()">Üret</button></div></div><div class="pill" onclick="go(\'country\')">'+c.f+' '+c.n+'<small>1 tür</small></div>'}
+           else if(page==='menu'){h+='<div class="grid">'+MENU.map(m=>'<div class="card '+(m[3]?'w':'')+'" onclick="go(\''+m[0]+'\')"><b>'+m[2]+'</b>'+m[1]+'</div>').join('')+'</div>'}
+           else if(page==='country'){h+=KEYS.map((k,i)=>'<div class="crow '+(k===S.country?'on':'')+'" onclick="setC(\''+k+'\')"><span>'+CT[k].f+' '+CT[k].n+'</span><span>'+(i+1)+' / '+KEYS.length+'</span></div>').join('')}
+           else if(page==='daily'){ensureDay();h+=TK.map(t=>{const p=Math.min(S.task.p[t.k],t.n),d=S.task.done[t.k];return '<div class="box"><h4>'+t.t+'</h4><div class="pg"><i style="width:'+(p*100/t.n)+'%"></i></div><p>'+p+' / '+t.n+' · Ödül: '+t.r+' ₺'+(t.g?' + '+t.g+' 💎':'')+'</p><button class="btn '+(d||p<t.n?'off':'')+'" onclick="claimT(\''+t.k+'\')">'+(d?'Alındı ✓':'Ödülü al')+'</button></div>'}).join('')}
+           else if(page==='coll'){h+='<div class="box"><b>'+S.coll.length+' / '+capC()+'</b> yuva dolu<br><br><button class="btn" onclick="sellTier0()">Tüm sıradan plakaları sat</button></div>'+itemList(S.coll,'coll')}
+           else if(page==='safe'){h+='<div class="box"><b>'+S.safe.length+' / '+capS()+'</b> kasa yuvası</div>'+upCard('safe')+itemList(S.safe,'safe')}
+           else if(page==='garage'){h+='<div class="box"><b>'+S.coll.length+' / '+capC()+'</b> koleksiyon yuvası</div>'+upCard('garage')}
+           else if(page==='cases'){h+=CS.map((c,i)=>'<div class="box"><h4>'+c.ic+' '+c.n+'</h4><p>Garanti: '+TN[c.min]+' veya daha iyisi · rastgele ülke</p><button class="btn big" style="font-size:15px;padding:12px" onclick="openCase('+i+')">'+(c.p?fmt(c.p)+' ₺':c.g+' 💎')+' ile aç</button></div>').join('')}
+           else if(page==='up'){h+=upCard('luck')+upCard('sell')}
+           else if(page==='auto'){h+='<div class="box"><h4>Otomatik satış</h4><p>Seçilen nadirlik ve altı üretilen plakalar otomatik satılır.</p><button class="btn big" style="font-size:15px;padding:12px" onclick="setAuto('+(!S.auto.on)+',null)">'+(S.auto.on?'Açık ✓ (kapat)':'Kapalı (aç)')+'</button></div><div class="box"><h4>En yüksek nadirlik</h4><br><div class="acts">'+[0,1,2].map(t=>'<button class="btn" style="'+(S.auto.max===t?'background:var(--ac)':'')+'" onclick="setAuto(null,'+t+')">'+TN[t]+'</button>').join('')+'</div></div>'}
+           else if(page==='fav'){h+=itemList(S.fav,'fav')}
+           else if(page==='buy'){h+='<div class="box"><p>Alıcılar belirli nadirlikte plaka için normal fiyatın üstünde öder.</p><button class="btn" onclick="refOffers()">Teklifleri yenile</button></div>'+S.offers.map((o,oi)=>{const idx=S.coll.findIndex(p=>p.t===o.t);return '<div class="box"><h4 style="color:'+TC[o.t]+'">'+TN[o.t]+' plaka isteniyor <span class="tag">x'+o.m+'</span></h4>'+(idx>=0?plate(S.coll[idx],.6)+'<br><button class="btn" onclick="sellOffer('+oi+','+idx+')">Sat: '+fmt(S.coll[idx].v*o.m)+' ₺</button>':'<p>Koleksiyonunda bu nadirlikte plaka yok.</p>')+'</div>'}).join('')}
+           else if(page==='cat'){const s=sim();h+='<div class="box"><p>'+c.f+' '+c.n+' için üretim olasılıkları (şans geliştirmesi hariç)</p></div>'+TN.map((n,i)=>'<div class="box" style="border-left:4px solid '+TC[i]+'"><h4 style="color:'+TC[i]+'">'+n+'</h4><p>Fiyat: ~'+fmt(BASE[i]*.6*(1+S.up.sell*.15))+' – '+fmt(BASE[i]*1.8*(1+S.up.sell*.15))+' ₺ · Olasılık: %'+s[i]+'</p></div>').join('')+'<div class="box"><h4>Ne değerli?</h4><p>777, 999 gibi aynı rakamlar · 001, 007 · 123, 4321 gibi diziler · 121 gibi simetrik sayılar · AA, BB gibi aynı harfler · 100, 500 gibi yuvarlak sayılar · 77, 99 gibi tekrarlı bölge kodları</p></div>'}
+           else if(page==='stats'){const r=(a,b)=>'<div class="tr"><span>'+a+'</span><b>'+b+'</b></div>';h+='<div class="box">'+r('Üretilen plaka',fmt(S.st.gen))+r('Satılan plaka',fmt(S.st.sold))+r('Toplam kazanç',fmt(S.st.earned)+' ₺')+r('Rekor plaka',fmt(S.st.rec)+' ₺')+r('Açılan kasa',S.st.cases)+r('Servet',fmt(worth())+' ₺')+'</div><div class="box">'+TN.map((n,i)=>r('<span style="color:'+TC[i]+'">'+n+'</span>',S.st.tier[i])).join('')+'</div>'}
+           else if(page==='ach'){h+=AC.map(a=>{const ok=a.f(),d=S.ach[a.id];return '<div class="box"><h4>'+a.t+'</h4><p>Ödül: '+fmt(a.r)+' ₺ + '+a.g+' 💎</p><button class="btn '+(d||!ok?'off':'')+'" onclick="claimA(\''+a.id+'\')">'+(d?'Alındı ✓':ok?'Ödülü al':'Kilitli')+'</button></div>'}).join('')}
+           else if(page==='rate'){const bots=[['Kaan',25e6],['Ivan',12e6],['Aliyar',6e6],['Nurlan',3e6],['Dmitri',1.5e6],['Elchin',8e5],['Arman',4e5],['Mehmet',2e5],['Sergei',1e5],['Zeynep',5e4]];bots.push([S.name+' (sen)',worth()]);bots.sort((a,b)=>b[1]-a[1]);h+='<div class="box">'+bots.map((b,i)=>'<div class="tr" style="'+(b[0].indexOf('(sen)')>0?'color:#ffd54a;font-weight:700':'')+'"><span>'+(i+1)+'. '+b[0]+'</span><span>'+fmt(b[1])+' ₺</span></div>').join('')+'</div>'}
+           else if(page==='prof'){h+='<div class="box"><h4>Oyuncu adı</h4><br><input value="'+S.name.replace(/"/g,'')+'" maxlength="16" onchange="S.name=this.value||\'Oyuncu\';save()"><br><br><div class="tr"><span>Seviye</span><b>'+(1+Math.floor(S.st.gen/50))+'</b></div><div class="tr"><span>Koleksiyon</span><b>'+S.coll.length+'</b></div><div class="tr"><span>Servet</span><b>'+fmt(worth())+' ₺</b></div></div>'}
+           else if(page==='set'){h+='<div class="box"><h4>İlerlemeyi sıfırla</h4><p>Tüm veriler silinir.</p><button class="btn" style="background:#b3202f" onclick="doReset()">'+(resetAsk?'Emin misin? Tekrar dokun':'Sıfırla')+'</button></div><div class="box"><h4>No¹</h4><p>10 ülke · plaka üret, topla, sat. Sürüm 1.0</p></div>'}
+           else if(page==='theme'){h+=Object.keys(THEMES).map(k=>'<div class="crow '+(k===S.theme?'on':'')+'" onclick="setTheme(\''+k+'\')"><span>'+k+'</span><span style="width:26px;height:26px;border-radius:8px;background:'+THEMES[k][1]+'"></span></div>').join('')}
+           return h}
+          function render(){document.getElementById('app').innerHTML=head()+'<div class="wrap">'+body()+'</div>'}
+          load();applyTheme();render();
+          </script></body></html>
+          EOF
+
+      - name: APK derle
+        run: |
+          cd proj
+          gradle assembleDebug --no-daemon --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk ../No1.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: No1-apk
+          path: No1.apk
